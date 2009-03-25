@@ -9,6 +9,12 @@ class Point
 		"lat: #{lat}, lng: #{lng}, name:#{name[0..8]}"
 	end
 	
+	def initialize(lat,lng,name)
+		@lat = lat
+		@lng = lng
+		@name = name
+	end
+
 	def to_cluster
 	  throw "attr not set!" if @lat.nil? || @lng.nil?
 	  Cluster.new([self])
@@ -137,20 +143,27 @@ end
 
 class PointReader
 
-  def self::read
+  def self::read(filename = 'data.csv')
     points = []
 
-    File.open('data.csv') do |f|
+    File.open(filename) do |f|
     	f.readlines.each do |line|
-    		p = Point.new
-    		p.name, p.lat, p.lng = line.strip.split(',')
-    		p.lat = p.lat.to_f
-    		p.lng = p.lng.to_f
-    		points << p
+    		name, lat, lng = line.strip.split(',')
+    		lat = lat.to_f
+    		lng = lng.to_f
+    		points << Point.new(lat,lng,name)
     	end
     end
     return points
   end
+
+	def self::random(total)
+		points = []
+		total.times do
+			points << Point.new(rand(500).to_f, rand(500).to_f, 'testpoint')
+		end
+		points
+	end
 end
 
 #points.each{|p| puts p }
