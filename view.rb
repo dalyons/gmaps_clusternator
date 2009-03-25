@@ -29,6 +29,7 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
   @cluster_width = CLUSTER_RADIUS
   @cluster_height = CLUSTER_RADIUS
   
+  
   stack do
     @menu = flow do
       para "set radius of degrees to cluster within"
@@ -42,12 +43,21 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
         @cluster_height = $canvas.lat_to_px(limit)
         $clusterer.clusterize_bottom_up(limit)
         draw_clusters
-        #draw_points
+        
+        #attach_listers_to_map
       end
+      
+      @status_text = para :width => 200, 
+                          :attach => Window, 
+                          :left => WIDTH - 200,
+                          :align => 'right'
+                          
+      @status_text.text = "click on clusters"
+      
     end
     
     @map = flow do
-      para "map"
+      #para "map"
     end
   end
   
@@ -62,8 +72,8 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
     @map.oval x + BORDER,y + BORDER,MARKER_RADIUS, {:center=>true}
   end
   
-  #@tooltip = @menu.add para "#{points.length}"
   
+  @drawn_cluster_centers = []
   def draw_cluster(cluster)
     x, y = $canvas.to_xy(cluster)
     
@@ -72,7 +82,6 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
     @map.strokewidth 0
     @map.fill rgb(255,0,0,0.2)
     
-    #current_radius = @limit_field.text.to_i
     @map.oval :left => x + BORDER,
               :top => y + BORDER,
               :width => @cluster_width,
@@ -80,12 +89,15 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
               :center=> true
               
     clr = rgb(rand,rand,rand,1.0)
-    puts cluster.points.length
-    puts cluster
     cluster.points.each{|point| draw_point(point, clr) }
+    
+    @drawn_cluster_centers << {:left => x + BORDER, :top => y + BORDER, :size => cluster.points.length}
+    
   end
   
   def draw_clusters
+    @drawn_cluster_centers = []
+    
     $clusterer.clusters.each do |cluster|
       puts "cluster lat:#{cluster.lat} lng:#{cluster.lng}"
       
@@ -101,18 +113,39 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
     end
   end
   
-  motion do |top, left|
-    #@tooltip.replace "#{rand} nodes"
+  #use clicks to show information about the clusters
+  click do |button, left, top|
+  
+    #relativize clicks to map pane
+    left -= @map.left
+    top -= @map.top
+    
+    #find if we're in a cluster, AFAIK you cant bind mouse events to art objects
+    results = @drawn_cluster_centers.select do |pos_hash|
+      
+      #puts "#{pos_hash[:top]} #{pos_hash[:left]} top:#{top} left:#{left} w:#{@cluster_width} h:#{@cluster_height}"
+      if left > pos_hash[:left] - @cluster_width / 2 &&
+          left < pos_hash[:left] + @cluster_width / 2 &&
+          top > pos_hash[:top] - @cluster_height / 2 &&
+          top < pos_hash[:top] + @cluster_height / 2 
+        pos_hash
+      else
+        nil
+      end
+      
+    end
+    
+    result = results.first
+    if result
+      @status_text.text = "#{result[:size]} nodes"
+    end
+    
   end
-  
-  
-  #
-  #@tooltip = para "#{points.length}"
-  
-  
+    
 
-  #para clusterer.clusters.length
   
   
   draw_clusters
+  
+  
 end
