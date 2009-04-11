@@ -119,6 +119,7 @@ class Cluster
   def add_points(points)
     points.each{|point| add_point point }
   end
+
   
   def size
     @points.length

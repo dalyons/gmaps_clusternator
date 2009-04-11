@@ -3,10 +3,13 @@ require 'rubygems'
 require 'rbtree'
 require 'set'
 
+
+
 class Clusterer
   attr_reader :clusters, :remainders
   
-  
+	#check if the RBTree gem has the enumerator patches I made
+	PATCHED_RBTREE = RBTree.new.respond_to?(:each_from_key) && RBTree.new.respond_to?(:reverse_each_from_key)
   
   #@points = []
   @clusters = []
@@ -62,12 +65,24 @@ class Clusterer
 
     #done
     puts "running clusterer..."
+		start = Time.now
     
     @limit = limit
     #implement the above
     #calculate the distance from each point to every other within range and store it in a sorted set       WC:  N*(N..1)
     links = RBTree.new
     remaining = @clusters.dup
+
+		#If we have the patched rbtree, we can set up some optimizations for use later on. 
+		#We are going to maintain two sorted rbtrees of lat & lng. So, if we have the patched rbtree
+		#that lets us start enumerating from any key, we can use these to find the nodes close to 
+		#a specfic node, without having to search all the other nodes on the canvass, reducing our search from 
+		# N-1 to logN + X, where X is the number of nodes rectagulary bounded by the limit_radius.
+		if PATCHED_RBTREE
+		  puts "Patched RBTree found, running in optimized mode..."
+			lat_tree = RBTree.new
+			lng_tree = RBTree.new
+		end
 
     #start with a set containing all nodes, then until empty:
     while (left_cluster = remaining.pop) do
@@ -79,6 +94,11 @@ class Clusterer
             links[distance] = ClusterLink.new(left_cluster, right_cluster)
           end
         }
+				if PATCHED_RBTREE
+					lat_tree[left_cluster.lat] = left_cluster
+					lng_tree[left_cluster.lng] = left_cluster
+				end
+	
         #discard the first 
     end
     
@@ -110,15 +130,38 @@ class Clusterer
       #remove the linked clusters from the pool
       cluster_pool.subtract([link.a, link.b])
       
-      #for every other cluster:                                                                  WC: (N-1) * logN
-      cluster_pool.each do |cluster|
-        #calc distance b/w new cluster and this one, push to link set if calc_dist < limit      
-        distance = ClusterLink.calc_distance(merged_cluster, cluster)
-        if distance < @limit
-          links[distance] = ClusterLink.new(merged_cluster, cluster)
-        end
-      end
-      
+
+			if PATCHED_RBTREE
+				#SMART WAY: only look at those clusters rectangulary bounded by the limit radius, using the patched enumerators
+				
+				
+				#First purge the lat/lng of the recently merged clusters                4logN
+				lat_tree.delete link.a.lat
+				lat_tree.delete link.b.lat
+				lng_tree.delete link.a.lng
+				lng_tree.delete link.b.lng
+				
+				#then add the new cluster                                               2logN
+				lat_tree[merged_cluster.lat] = merged_cluster
+				lng_tree[merged_cluster.lng] = merged_cluster
+
+				find_close_nodes(lat_tree, lng_tree, merged_cluster).each {|cluster|   # XlogN
+				  distance = ClusterLink.calc_distance(merged_cluster, cluster)
+				  links[distance] = ClusterLink.new(merged_cluster, cluster)
+				}
+
+			else
+    	  #DUMB WAY: for every other cluster:                                                       WC: (N-1) * logN
+				cluster_pool.each do |cluster|
+    	    #calc distance b/w new cluster and this one, push to link set if calc_dist < limit      
+   	    	distance = ClusterLink.calc_distance(merged_cluster, cluster)
+   	    	if distance < @limit
+  	      	links[distance] = ClusterLink.new(merged_cluster, cluster)
+ 	      	end
+	      end
+
+			end
+
       #now add self to the pool
       cluster_pool.add(merged_cluster)
     end
@@ -126,7 +169,7 @@ class Clusterer
     #set the results before we're done
     @clusters = cluster_pool.to_a
     
-    puts "done with clusterer"
+    puts "Clusterer finished in #{Time.now - start} sec."
 
   #possible optimizations?
     #convert every point into a cluster of size 1
@@ -135,6 +178,29 @@ class Clusterer
       #  #how?
       ##push this cluster into the lat and lng lists
       ##push these links onto the link tree
+  end
+
+ private
+  def find_close_nodes(lat_tree,lng_tree, center_cluster)
+    clusters_in_range = []
+    lat_tree.each_from_key(center_cluster.lat) { |lat,cluster|
+      clusters_in_range.push(cluster) if ClusterLink::within_limit?(center_cluster,cluster,@limit) && cluster != center_cluster
+      break if lat > center_cluster.lat + @limit
+    }
+    lat_tree.reverse_each_from_key(center_cluster.lat) { |lat,cluster|
+      clusters_in_range.push(cluster) if ClusterLink::within_limit?(center_cluster,cluster,@limit) && cluster != center_cluster
+      break if lat < center_cluster.lat - @limit
+    }
+    
+    lng_tree.each_from_key(center_cluster.lng) { |lng,cluster|
+      clusters_in_range.push(cluster) if ClusterLink::within_limit?(center_cluster,cluster,@limit) && cluster != center_cluster
+      break if lng > center_cluster.lng + @limit
+    }
+    lng_tree.reverse_each_from_key(center_cluster.lng) { |lng,cluster|
+      clusters_in_range.push(cluster) if ClusterLink::within_limit?(center_cluster,cluster,@limit) && cluster != center_cluster
+      break if lng < center_cluster.lng - @limit
+    }
+    return clusters_in_range
   end
 
 end
@@ -147,6 +213,10 @@ class ClusterLink
   def self.calc_distance(p1, p2)
     Math.sqrt((p1.lat - p2.lat).abs ** 2 + (p1.lng - p2.lng).abs ** 2)
   end
+	def self::within_limit?(p1,p2,limit)
+		dist = self::calc_distance(p1,p2)
+		return dist <= limit #&& dist > 0
+	end
 
   def initialize(cluster_a, cluster_b)
     @a = cluster_a
