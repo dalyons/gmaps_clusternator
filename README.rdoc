@@ -1,0 +1,18 @@
+
+
+h1. Server side clustering for maps APIs 
+
+This is an experimental prototype of server-side clustering of point nodes for mapping services. There are some nice client-side clustering algorithims available, and these work great up to a few thousand data points. Beyond that, the overhead in sending 10's of thousands of markers over JSON/XML and processing them in Jscript becomes prohibitive. 
+
+This prototype aims to solve this problem by clustering on the server side, with the ability to pass in a window viewport(eg bounds of the GMap) & the radius of cluster size(eg the GMap zoom level)
+
+At the moment it works quite well as a demo, using a simple Sinatra frontend.
+
+just git pull it, then run 'ruby server.rb' and browse to localhost:9090 to see the demo.
+
+h2. Todos:
+
+*  Make it into a Rails plugin
+*  Work out a way to align the clustering grid with the viewport so that map pans dont change pre-existing clusters.
+*  Put in some nicer looking markers
+
