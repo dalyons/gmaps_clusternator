@@ -1,0 +1,94 @@
+!!!
+%html
+  %head
+    <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;sensor=true_or_false&amp;key=ABQIAAAAea-Ghcby5zrJj8mBqBjWEhQz5JJ2zPi3YI9JDWBFF6NSsxhe4BRAnT3wp6jYzkOG59iFA19PUqpjzA" type="text/javascript"></script>
+  :javascript
+    var map = null;
+    var geocoder = null;
+
+    function initialize(){
+      map = new GMap2(document.getElementById("map_canvas"));
+      map.addControl(new GLargeMapControl());
+      map.enableScrollWheelZoom();
+      map.addControl(new GMapTypeControl());
+
+      geocoder = new GClientGeocoder();
+
+      setCenter('Australia',4);
+
+      //setTimeout('loadJson()', 1000);
+      //loadJson();
+      setTimeout('loadMarkersForCurrentZoomLevel()', 1000);
+
+      GEvent.addListener(map, "zoomend", function(old_level, new_level) {
+        loadMarkersForCurrentZoomLevel(); 
+      });
+
+      GEvent.addListener(map, "dragend", function(point) {
+        loadMarkersForCurrentZoomLevel(); 
+      });
+      GEvent.addListener(map, 'mousemove', function(pointer){
+        document.getElementById("coords").innerHTML = pointer.toUrlValue();
+      });
+    }
+
+    function setCenter(address, zoom) {
+      geocoder.getLatLng(
+          address,
+          function(point) {
+            if (!point) {
+              alert(address + " not found");
+            } else {
+              map.setCenter(point, zoom);
+            }
+          }
+        );
+    }
+
+    function createMarker(input) {
+      //alert(input.lat + ' ' + input.lng);
+      var marker = new GMarker(new GLatLng(input.lat, input.lng));
+      //marker.icon.iconSize = new GSize(90,90);
+      GEvent.addListener(marker, "click", function() {
+        marker.openInfoWindowHtml( "Size: " + input.size );
+      });
+      return marker;
+    }
+    function parseJson(doc) {
+      var jsonData = eval("(" + doc + ")");
+      for (var i = 0; i < jsonData.markers.length; i++) {
+        var marker = createMarker(jsonData.markers[i]);
+        map.addOverlay(marker);
+      }
+    }
+    function loadMakers(radius) {
+      var sw = map.getBounds().getSouthWest();
+      var ne = map.getBounds().getNorthEast();
+      
+      var bounds = "sw_lat=" + sw.lat() + "&sw_lng=" + sw.lng() + "&ne_lat=" + ne.lat() + "&ne_lng=" + ne.lng();
+
+      GDownloadUrl("/nodes.js?radius=" + radius + "&" + bounds, function(data, responseCode) {
+          parseJson(data);
+      });
+    }
+    function loadMarkersForCurrentZoomLevel() {
+      map.clearOverlays();
+
+      var span = map.getBounds().toSpan();
+      //alert(bounds.lat() + ':' + bounds.lng());
+
+      var av = (span.lat() + span.lng()) / 2;
+
+      var radius = av * 0.10
+      loadMakers(radius);
+    }
+
+  %body{:onload => "initialize()", :onunload=>"GUnload()"}
+    %h1 Test of gmaps-clusternator
+
+    #map_canvas{:style => 'width: 640px; height: 480px;'}
+    #coords
+
+
+
+

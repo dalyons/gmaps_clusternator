@@ -1,6 +1,7 @@
 
 Shoes.setup do
   gem 'rbtree'
+  #gem 'ruby-debug'
 end
 require 'rbtree'
 require 'clusterer.rb'
@@ -17,9 +18,10 @@ CLUSTER_RADIUS = 30
 
 #$points = PointReader::random(500)
 $points = PointReader::read('data.csv')
-$points.each{|p| puts p}
+#$points.each{|p| puts p}
 $canvas = PointCanvas.new(WIDTH,HEIGHT,$points)
-$clusterer = Clusterer.new($points, 6)
+#$clusterer = Clusterer.new($points, 6)
+$clusterer = Clusterer2.new($canvas)
 #$clusterer.clusterize_bottom_up(6)
 
 
@@ -43,7 +45,8 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
         limit = @limit_field.text.to_i
         @cluster_width = $canvas.lng_to_px(limit)
         @cluster_height = $canvas.lat_to_px(limit)
-        $clusterer.clusterize_bottom_up(limit)
+        #$clusterer.clusterize_bottom_up(limit)
+        $clusterer.clusterize(limit)
         draw_clusters
         
         #attach_listers_to_map
@@ -101,7 +104,7 @@ Shoes.app(:width => WIDTH + BORDER * 2, :height => HEIGHT + BORDER * 2 + 50, :re
     @drawn_cluster_centers = []
     
     $clusterer.clusters.each do |cluster|
-     # puts "cluster lat:#{cluster.lat} lng:#{cluster.lng}"
+      puts "cluster lat:#{cluster.lat} lng:#{cluster.lng}"
       
       draw_cluster(cluster)
       
